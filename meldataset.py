@@ -7,14 +7,19 @@ import numpy as np
 from librosa.util import normalize
 from scipy.io.wavfile import read
 from librosa.filters import mel as librosa_mel_fn
+import soundfile as sf
+import librosa
 
 MAX_WAV_VALUE = 32768.0
 
 
-def load_wav(full_path):
+def load_wav2(full_path):
     sampling_rate, data = read(full_path)
     return data, sampling_rate
 
+def load_wav(full_path):
+    data, sampling_rate = sf.read(full_path)
+    return data, sampling_rate
 
 def dynamic_range_compression(x, C=1, clip_val=1e-5):
     return np.log(np.clip(x, a_min=clip_val, a_max=None) * C)
@@ -27,13 +32,19 @@ def dynamic_range_decompression(x, C=1):
 def dynamic_range_compression_torch(x, C=1, clip_val=1e-5):
     return torch.log(torch.clamp(x, min=clip_val) * C)
 
+def dynamic_range_compression_torch2(x, C=1, clip_val=1e-10):
+    ref = x.max()
+    x = torch.clamp(x, min=clip_val)
+    x = torch.log10(x) - torch.log10(ref)
+    return x
 
 def dynamic_range_decompression_torch(x, C=1):
     return torch.exp(x) / C
 
 
 def spectral_normalize_torch(magnitudes):
-    output = dynamic_range_compression_torch(magnitudes)
+    #output = dynamic_range_compression_torch(magnitudes)
+    output = dynamic_range_compression_torch2(magnitudes)
     return output
 
 
@@ -64,13 +75,24 @@ def mel_spectrogram(y, n_fft, num_mels, sampling_rate, hop_size, win_size, fmin,
     spec = torch.stft(y, n_fft, hop_length=hop_size, win_length=win_size, window=hann_window[str(y.device)],
                       center=center, pad_mode='reflect', normalized=False, onesided=True)
 
-    spec = torch.sqrt(spec.pow(2).sum(-1)+(1e-9))
+    #spec = torch.sqrt(spec.pow(2).sum(-1)+(1e-9))
+    spec = spec.pow(2).sum(-1)
 
     spec = torch.matmul(mel_basis[str(fmax)+'_'+str(y.device)], spec)
     spec = spectral_normalize_torch(spec)
-
     return spec
 
+def mel_spectrogram2(y, n_fft, num_mels, sampling_rate, hop_size, win_size, fmin, fmax, center=False):
+    #y = torch.nn.functional.pad(y.unsqueeze(1), (int((n_fft-hop_size)/2), int((n_fft-hop_size)/2)), mode='reflect')
+    #y = y.squeeze(1)
+    if not isinstance(y, np.ndarray):
+        y = y.cpu().detach().numpy()
+    mel = librosa.feature.melspectrogram(y, sampling_rate, n_fft=n_fft, hop_length=hop_size, n_mels=num_mels, fmin=fmin, fmax=fmax) 
+    #mel_db = librosa.power_to_db(mel, ref=np.max)
+    ref = mel.max()
+    mel_db = np.log10(np.maximum(mel, 1e-10)) - np.log10(ref) 
+    mel_db = torch.from_numpy(mel_db).float().unsqueeze(0)
+    return mel_db
 
 def get_dataset_filelist(a):
     with open(a.input_training_file, 'r', encoding='utf-8') as fi:
@@ -112,7 +134,7 @@ class MelDataset(torch.utils.data.Dataset):
         filename = self.audio_files[index]
         if self._cache_ref_count == 0:
             audio, sampling_rate = load_wav(filename)
-            audio = audio / MAX_WAV_VALUE
+            #audio = audio / MAX_WAV_VALUE
             if not self.fine_tuning:
                 audio = normalize(audio) * 0.95
             self.cached_wav = audio
@@ -161,7 +183,6 @@ class MelDataset(torch.utils.data.Dataset):
         mel_loss = mel_spectrogram(audio, self.n_fft, self.num_mels,
                                    self.sampling_rate, self.hop_size, self.win_size, self.fmin, self.fmax_loss,
                                    center=False)
-
         return (mel.squeeze(), audio.squeeze(0), filename, mel_loss.squeeze())
 
     def __len__(self):
