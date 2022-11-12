@@ -1,0 +1,1 @@
+python3 train.py --config config_16k.json --input_wavs_dir $1/wavs --input_training_file $1/training.txt --input_validation_file $1/validation.txt
