@@ -6,6 +6,8 @@ import numpy as np
 import argparse
 import json
 import torch
+import soundfile as sf
+from os.path import join, basename, exists, dirname
 from scipy.io.wavfile import write
 from env import AttrDict
 from meldataset import MAX_WAV_VALUE
@@ -45,16 +47,53 @@ def inference(a):
     generator.remove_weight_norm()
     with torch.no_grad():
         for i, filname in enumerate(filelist):
-            x = np.load(os.path.join(a.input_mels_dir, filname))
-            x = torch.FloatTensor(x).to(device)
+            x = torch.load(os.path.join(a.input_mels_dir, filname))
+            #x = torch.FloatTensor(x).to(device)
+            x = x.to(device)
             y_g_hat = generator(x)
             audio = y_g_hat.squeeze()
-            audio = audio * MAX_WAV_VALUE
-            audio = audio.cpu().numpy().astype('int16')
+            #audio = audio * MAX_WAV_VALUE
+            #audio = audio.cpu().numpy().astype('int16')
+            audio = audio.cpu().numpy()
+            audio /= np.abs(audio).max()
 
             output_file = os.path.join(a.output_dir, os.path.splitext(filname)[0] + '_generated_e2e.wav')
-            write(output_file, h.sampling_rate, audio)
+            #write(output_file, h.sampling_rate, audio)
+            sf.write(output_file, audio, h.sampling_rate, 'PCM_24')
             print(output_file)
+
+def inference_torch(a):
+    # this is used for torch file mel-spec conversion
+    # only *.pt file will be converted
+    # output dir is the same as the input dir
+    generator = Generator(h).to(device)
+
+    state_dict_g = load_checkpoint(a.checkpoint_file, device)
+    generator.load_state_dict(state_dict_g['generator'])
+
+    filelist = glob.glob(join(a.input_mels_dir, '*/*.pt'))
+    filelist += glob.glob(join(a.input_mels_dir, '*/*/*.pt'))
+    #os.makedirs(a.output_dir, exist_ok=True)
+
+    generator.eval()
+    generator.remove_weight_norm()
+    with torch.no_grad():
+        for i, filname in enumerate(filelist):
+            x = torch.load(filname)
+            #x = torch.FloatTensor(x).to(device)
+            x = x.to(device)
+            y_g_hat = generator(x)
+            audio = y_g_hat.squeeze()
+            #audio = audio * MAX_WAV_VALUE
+            #audio = audio.cpu().numpy().astype('int16')
+            audio = audio.cpu().numpy()
+            audio /= np.abs(audio).max()
+
+            fid = basename(filname)[:-3] + '.wav'
+            output_file = join(dirname(filname), fid)
+            #write(output_file, h.sampling_rate, audio)
+            sf.write(output_file, audio, h.sampling_rate, 'PCM_24')
+            #print(output_file)
 
 
 def main():
@@ -82,7 +121,8 @@ def main():
     else:
         device = torch.device('cpu')
 
-    inference(a)
+    #inference(a)
+    inference_torch(a)
 
 
 if __name__ == '__main__':
