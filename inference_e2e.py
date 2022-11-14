@@ -71,7 +71,8 @@ def inference_torch(a):
     state_dict_g = load_checkpoint(a.checkpoint_file, device)
     generator.load_state_dict(state_dict_g['generator'])
 
-    filelist = glob.glob(join(a.input_mels_dir, '*/*.pt'))
+    filelist = glob.glob(join(a.input_mels_dir, '*.pt'))
+    filelist += glob.glob(join(a.input_mels_dir, '*/*.pt'))
     filelist += glob.glob(join(a.input_mels_dir, '*/*/*.pt'))
     #os.makedirs(a.output_dir, exist_ok=True)
 
@@ -80,7 +81,7 @@ def inference_torch(a):
     with torch.no_grad():
         for i, filname in enumerate(filelist):
             x = torch.load(filname)
-            #x = torch.FloatTensor(x).to(device)
+            x = torch.FloatTensor(x).to(device)
             x = x.to(device)
             y_g_hat = generator(x)
             audio = y_g_hat.squeeze()
