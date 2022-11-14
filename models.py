@@ -83,15 +83,16 @@ class Generator(torch.nn.Module):
 
         self.ups = nn.ModuleList()
         for i, (u, k) in enumerate(zip(h.upsample_rates, h.upsample_kernel_sizes)):
-            #self.ups.append(weight_norm(
-                #ConvTranspose1d(h.upsample_initial_channel//(2**i), h.upsample_initial_channel//(2**(i+1)),
-                                #k, u, padding=(k-u)//2)))
+            self.ups.append(weight_norm(
+                ConvTranspose1d(h.upsample_initial_channel//(2**i), h.upsample_initial_channel//(2**(i+1)),
+                                k, u, padding=(k-u)//2)))
+            '''
             self.ups.append(weight_norm(
                 ConvTranspose1d(h.upsample_initial_channel // (2 ** i),
                         h.upsample_initial_channel // (2** (i+1)), k, u,
-                        padding=(u // 2 + u %2), output_padding=u%2)
+                        padding=(u // 2 + u % 2), output_padding=u % 2)
             ))
-
+            '''
         self.resblocks = nn.ModuleList()
         for i in range(len(self.ups)):
             ch = h.upsample_initial_channel//(2**(i+1))
@@ -117,7 +118,6 @@ class Generator(torch.nn.Module):
         x = F.leaky_relu(x)
         x = self.conv_post(x)
         x = torch.tanh(x)
-
         return x
 
     def remove_weight_norm(self):
