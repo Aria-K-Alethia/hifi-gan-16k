@@ -105,7 +105,7 @@ def train(rank, a, h):
     for epoch in range(max(0, last_epoch), a.training_epochs):
         if rank == 0:
             start = time.time()
-            print("Epoch: {}".format(epoch+1))
+            print("Epoch: {}, optim_g lr: {}, optim_d lr: {}".format(epoch+1, scheduler_g.get_last_lr(), scheduler_d.get_last_lr()))
 
         if h.num_gpus > 1:
             train_sampler.set_epoch(epoch)

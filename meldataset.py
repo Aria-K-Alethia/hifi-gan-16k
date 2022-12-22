@@ -43,8 +43,7 @@ def dynamic_range_decompression_torch(x, C=1):
 
 
 def spectral_normalize_torch(magnitudes):
-    #output = dynamic_range_compression_torch(magnitudes)
-    output = dynamic_range_compression_torch2(magnitudes)
+    output = dynamic_range_compression_torch(magnitudes)
     return output
 
 
@@ -75,8 +74,8 @@ def mel_spectrogram(y, n_fft, num_mels, sampling_rate, hop_size, win_size, fmin,
     spec = torch.stft(y, n_fft, hop_length=hop_size, win_length=win_size, window=hann_window[str(y.device)],
                       center=center, pad_mode='reflect', normalized=False, onesided=True)
 
-    #spec = torch.sqrt(spec.pow(2).sum(-1)+(1e-9))
-    spec = spec.pow(2).sum(-1)
+    spec = torch.sqrt(spec.pow(2).sum(-1)+(1e-9))
+    #spec = spec.pow(2).sum(-1)
 
     spec = torch.matmul(mel_basis[str(fmax)+'_'+str(y.device)], spec)
     spec = spectral_normalize_torch(spec)
